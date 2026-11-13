@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytimer2"
+version = "1.0.0"
+description = "pytimer2: pausable timers and deadlines for Python. Threads, asyncio, one scheduler thread, instant tests with a fake clock."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Atiqur Rahman" }]
+keywords = ["timer", "countdown", "pause", "resume", "deadline", "stopwatch", "asyncio", "threading", "watchdog", "debounce"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov", "mypy>=1.8", "ruff>=0.4", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/attiqRahman/pytimer2"
+Documentation = "https://github.com/attiqRahman/pytimer2#readme"
+Source = "https://github.com/attiqRahman/pytimer2"
+Changelog = "https://github.com/attiqRahman/pytimer2/blob/HEAD/CHANGELOG.md"
+
+[project.scripts]
+pytimer2 = "pytimer2.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pytimer2 = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["pytimer2"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+[tool.mypy]
+files = ["src/pytimer2"]
+strict = true
+python_version = "3.10"
+warn_unreachable = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+src = ["src", "tests"]
+# README examples use aligned comments on purpose.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+# The project targets Python 3.9 typing style (List, Optional).
+ignore = ["SIM105", "UP006", "UP007", "UP035", "UP045"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true

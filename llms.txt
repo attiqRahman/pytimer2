@@ -1,0 +1,86 @@
+# pytimer2
+
+> pytimer2: pausable timers and deadlines for Python. Pure Python 3.9+, no dependencies, fully typed. Pausable countdowns, ticks, repeats, deadlines, stopwatches, threading.Timer replacement, watchdog, debounce. Works with threads and asyncio. All timers share one scheduler thread per clock. FakeClock makes tests instant.
+
+Install: `pip install pytimer2`. Import everything from `pytimer2`.
+
+## Timer
+
+```python
+from pytimer2 import Timer
+t = Timer(duration, on_finish=None, *, tick=None, on_tick=None, repeat=False,
+          on_pause=None, on_resume=None, on_stop=None, name=None, clock=None, loop=None)
+```
+
+- duration: seconds (int/float), timedelta, or string ("90", "2.5s", "500ms", "25m", "1h30m", "1:30", "1:02:03").
+- on_finish(): called at the end of each cycle. on_tick(remaining: float): every `tick` seconds of running time, strictly before the end.
+- repeat: False (once), True (until stopped), int n (n cycles in total).
+- Callbacks run on one shared daemon callback thread, never under a lock; they may call timer methods. `async def` callbacks run in the loop running at start() (or `loop=`).
+- start(duration=None) -> Timer (raises TimerError if running/paused; restarts from zero if finished/stopped)
+- restart(duration=None) -> Timer; reset(duration=None) -> Timer (back to IDLE, no callbacks)
+- pause() -> bool; resume() -> bool; toggle() -> bool; stop() -> bool (alias cancel)
+- extend(seconds) -> bool (negative shortens; ends now if already used up)
+- wait(timeout=None) -> bool (blocks; raises TimerError with FakeClock or inside a callback)
+- await t.wait_async(timeout=None) -> bool; `await t` returns t
+- Properties: state (TimerState.IDLE/RUNNING/PAUSED/FINISHED/STOPPED), elapsed, remaining, progress (0..1), cycles, duration, tick, repeat, running, paused, finished, active
+- to_dict() -> dict (JSON safe); Timer.from_dict(data, *, catch_up=True, clock=None, loop=None, **callbacks)
+- Context manager: `with Timer(5, f):` starts, stops on exit.
+- every(interval, fn, *, tick=None, on_tick=None, name=None, clock=None, loop=None) -> started repeating Timer.
+
+## Deadline
+
+```python
+from pytimer2 import Deadline, DeadlineExceeded  # DeadlineExceeded subclasses TimeoutError
+d = Deadline(seconds, *, clock=None, name=None)   # starts counting immediately
+d.check(what=None)        # raise DeadlineExceeded if expired
+d.timeout(cap=None)       # min(remaining, cap), for blocking calls
+d.pause(); d.resume()     # -> bool
+d.extend(seconds)         # -> new remaining
+d.remaining, d.elapsed, d.expired, d.paused, d.budget
+async with Deadline(5): ...   # Python 3.11+, cancels the block, raises DeadlineExceeded
+```
+
+Deadline never interrupts sync code by itself (Python cannot kill threads).
+
+## Stopwatch
+
+`Stopwatch(*, clock=None, start=False)`: start() -> self, pause()/resume()/stop() -> bool, reset()/restart() -> self, lap() -> float, laps, elapsed, running. `with Stopwatch() as sw:`. str(sw) -> "00:01.234".
+
+## PausableTimer (threading.Timer replacement)
+
+`PausableTimer(interval, function, args=None, kwargs=None, *, daemon=True, name=None, clock=None)`: start(), cancel(), join(timeout), is_alive(), finished (Event), plus pause(), resume(), remaining, elapsed. Function runs in its own thread.
+
+## Helpers
+
+- `TimerGroup(timers=())`: add(t), remove(t), start() -> group, pause()/resume()/stop() -> count, wait(timeout), await wait_async(timeout), active.
+- `Watchdog(timeout, on_timeout, *, name=None, clock=None, loop=None)`: start() -> self, kick() (alias feed) restarts countdown and re-arms after firing, pause(), resume(), stop(), fired, remaining.
+- `@debounce(wait, *, clock=None)`: runs fn with the latest args after `wait` seconds without calls. Wrapper has cancel() -> bool, flush() -> bool, pending.
+- `format_time(seconds, *, ms=False, ceil=False)` -> "MM:SS" or "H:MM:SS" (".mmm" with ms).
+- `parse_duration(value)` -> float seconds; ValueError on bad or negative input.
+
+## Clocks and testing
+
+- `SystemClock(include_suspend=False)`: monotonic; include_suspend uses CLOCK_BOOTTIME on Linux only.
+- `FakeClock(start=0.0)`: time moves only on `clock.advance(seconds)`, which fires all due events and callbacks in order, in the calling thread. No threads are started.
+
+```python
+from pytimer2 import FakeClock, Timer
+clock = FakeClock()
+hits = []
+t = Timer(5, lambda: hits.append(clock.now()), clock=clock).start()
+clock.advance(2); t.pause(); clock.advance(100); t.resume(); clock.advance(3)
+assert hits == [105.0]
+```
+
+## CLI
+
+`pytimer2 25m`, `pytimer2 1:30 -l Tea`, `python -m pytimer2 90 --quiet`. Options: --label/-l, --tick/-t, --quiet/-q, --no-bell, --version.
+
+## Legacy 0.x API (deprecated, removed in 2.0)
+
+start_countdown(duration=500), get_countdown() -> int (whole seconds rounded up, 0 after stop), pause_countdown(), resume_countdown(), stop_countdown(). They emit DeprecationWarning.
+
+## Links
+
+- Source: https://github.com/attiqRahman/pytimer2
+- PyPI: https://pypi.org/project/pytimer2/
