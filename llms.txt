@@ -19,7 +19,7 @@ t = Timer(duration, on_finish=None, *, tick=None, on_tick=None, repeat=False,
 - start(duration=None) -> Timer (raises TimerError if running/paused; restarts from zero if finished/stopped)
 - restart(duration=None) -> Timer; reset(duration=None) -> Timer (back to IDLE, no callbacks)
 - pause() -> bool; resume() -> bool; toggle() -> bool; stop() -> bool (alias cancel)
-- extend(seconds) -> bool (negative shortens; ends now if already used up)
+- extend(seconds) -> bool (current cycle only; next repeat/start/restart/reset use the normal duration; negative shortens; ends now if already used up)
 - wait(timeout=None) -> bool (blocks; raises TimerError with FakeClock or inside a callback)
 - await t.wait_async(timeout=None) -> bool; `await t` returns t
 - Properties: state (TimerState.IDLE/RUNNING/PAUSED/FINISHED/STOPPED), elapsed, remaining, progress (0..1), cycles, duration, tick, repeat, running, paused, finished, active

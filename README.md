@@ -78,7 +78,7 @@ Timer(duration=0, on_finish=None, *, tick=None, on_tick=None, repeat=False,
 | `stop()` (alias `cancel()`) | Stop for good, calls `on_stop`. Returns `True` if it was active. |
 | `restart(duration=None)` | Start again from zero in any state. Returns the timer. |
 | `reset(duration=None)` | Back to idle, no callbacks. Returns the timer. |
-| `extend(seconds)` | Add time to the current cycle (negative shortens it). |
+| `extend(seconds)` | Add time to the current cycle only. A negative number shortens it; if that is less than the time already run, the cycle ends now. The next repeat, `start()`, `restart()` and `reset()` use the normal `duration` again. Returns `False` if the timer is not running or paused. |
 | `wait(timeout=None)` | Block until finished or stopped. `False` on timeout. |
 | `await timer`, `await timer.wait_async(timeout)` | The asyncio versions. |
 | `elapsed`, `remaining`, `progress` | Seconds run, seconds left, 0.0 to 1.0. |

@@ -119,7 +119,8 @@ class Timer:
         self._clock = clock if clock is not None else default_clock()
         self._sched = self._clock.scheduler
         self._lock = self._sched.lock
-        self._duration = parse_duration(duration)
+        self._base = parse_duration(duration)  # normal cycle length
+        self._duration = self._base  # length of the current cycle (extend() changes only this)
         if tick is not None and not tick > 0:
             raise ValueError("tick must be a positive number of seconds")
         self._tick = float(tick) if tick is not None else None
@@ -155,8 +156,8 @@ class Timer:
 
     @property
     def duration(self) -> float:
-        """Length of one cycle in seconds."""
-        return self._duration
+        """Normal length of one cycle in seconds. :meth:`extend` does not change it."""
+        return self._base
 
     @property
     def tick(self) -> Optional[float]:
@@ -237,7 +238,8 @@ class Timer:
         """Go back to IDLE with zero elapsed time, without callbacks. Returns the timer."""
         with self._lock:
             if duration is not None:
-                self._duration = parse_duration(duration)
+                self._base = parse_duration(duration)
+            self._duration = self._base
             self._cancel_handle()
             self._state = TimerState.IDLE
             self._accum = 0.0
@@ -296,6 +298,8 @@ class Timer:
     def extend(self, seconds: Duration) -> bool:
         """Add time to the current cycle (a negative number shortens it).
 
+        Only the current cycle changes: the next repeat, ``start()``,
+        ``restart()`` and ``reset()`` use the normal :attr:`duration` again.
         Returns False if the timer is not running or paused. If the new length
         is already used up, the cycle ends right away.
         """
@@ -303,7 +307,8 @@ class Timer:
         with self._lock:
             if self._state not in _ACTIVE:
                 return False
-            self._duration = max(0.0, self._duration + delta)
+            # Never shorter than the time already run, so a shortened cycle ends now (not in the past).
+            self._duration = max(self._elapsed_locked(), self._duration + delta)
             if self._state is TimerState.RUNNING:
                 self._schedule_next_locked()
         self._sched.after_call()
@@ -374,7 +379,8 @@ class Timer:
             return {
                 "version": 1,
                 "name": self.name,
-                "duration": self._duration,
+                "duration": self._base,
+                "extended": self._duration - self._base,
                 "elapsed": self._elapsed_locked(),
                 "state": self._state.value,
                 "tick": self._tick,
@@ -413,10 +419,18 @@ class Timer:
         state = TimerState(data.get("state", "idle"))
         elapsed = max(0.0, float(data.get("elapsed", 0.0)))
         cycles = int(data.get("cycles", 0))
+        extra = float(data.get("extended", 0.0))
         if state is TimerState.RUNNING and catch_up and "saved_at" in data:
             elapsed += max(0.0, time.time() - float(data["saved_at"]))
         with timer._lock:
-            dur = timer._duration
+            first = max(0.0, timer._base + extra)
+            if extra and state in _ACTIVE and elapsed >= first and timer._repeats_left(cycles + 1):
+                # The extended cycle ended while saved; later cycles have the normal length.
+                elapsed -= first
+                cycles += 1
+                first = timer._base
+            timer._duration = first
+            dur = first
             if state in _ACTIVE and timer._repeats_left(cycles) and dur > 0 and elapsed >= dur:
                 # Skip whole missed cycles, but leave the last one so it can finish normally.
                 missed = int(elapsed // dur)
@@ -471,7 +485,8 @@ class Timer:
 
     def _prepare(self, duration: Optional[Duration]) -> None:
         if duration is not None:
-            self._duration = parse_duration(duration)
+            self._base = parse_duration(duration)
+        self._duration = self._base
         if self._duration <= 0 and self._repeat != 1:
             raise ValueError("a repeating timer needs a duration greater than zero")
 
@@ -532,6 +547,7 @@ class Timer:
         ideal_end = self._seg_start + (self._duration - self._accum)
         self._emit(self.on_finish)
         if self._repeats_left(self._cycles):
+            self._duration = self._base  # an extend() lasts for one cycle only
             now = self._clock.now()
             # Restart from the ideal end time so repeats do not drift, unless
             # a whole cycle was missed (then start from now).

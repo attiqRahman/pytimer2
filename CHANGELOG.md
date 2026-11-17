@@ -12,6 +12,10 @@ A full rewrite. The 0.x methods still work (with a `DeprecationWarning`).
 
 - `Timer` with `start()`, `pause()`, `resume()`, `toggle()`, `stop()`,
   `restart()`, `reset()`, `extend()`, `wait()`, `wait_async()` and `await timer`.
+- `extend()` changes only the current cycle. The next repeat, `start()`,
+  `restart()` and `reset()` go back to the normal `duration`. A negative
+  value that cuts below the time already run ends the cycle now, and the
+  next repeat gets its full length. `to_dict()` saves the extension.
 - Callbacks: `on_finish`, `on_tick` (with `tick=`), `on_pause`, `on_resume`,
   `on_stop`. Callbacks may be `async def`.
 - Repeating timers (`repeat=True` or a number of cycles) without drift, and `every()`.

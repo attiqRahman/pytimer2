@@ -291,6 +291,70 @@ def test_extend_while_paused(clock: FakeClock) -> None:
     assert t.remaining == pytest.approx(9)
 
 
+def test_extend_lasts_one_cycle_only(clock: FakeClock) -> None:
+    t = Timer(5, clock=clock).start()
+    t.extend(10)
+    assert t.remaining == pytest.approx(15)
+    assert t.duration == 5
+    t.restart()
+    assert t.remaining == pytest.approx(5)
+    t.extend(10)
+    t.stop()
+    t.start()
+    assert t.remaining == pytest.approx(5)
+    t.extend(10)
+    t.reset()
+    assert t.remaining == pytest.approx(5)
+
+
+def test_extend_does_not_carry_into_next_repeat(clock: FakeClock) -> None:
+    rec = Recorder(clock)
+    t = Timer(2, rec("finish"), repeat=3, clock=clock).start()
+    clock.advance(1)
+    t.extend(3)
+    clock.advance(10)
+    assert rec.events == [("finish", 5.0), ("finish", 7.0), ("finish", 9.0)]
+
+
+def test_negative_extend_on_repeat_restores_length(clock: FakeClock) -> None:
+    rec = Recorder(clock)
+    t = Timer(2, rec("finish"), repeat=True, clock=clock).start()
+    clock.advance(1)
+    t.extend(-5)
+    assert rec.events == [("finish", 1.0)]
+    clock.advance(2)
+    assert rec.events == [("finish", 1.0), ("finish", 3.0)]
+    t.stop()
+
+
+def test_extended_timer_save_and_restore(clock: FakeClock) -> None:
+    t = Timer(5, repeat=2, clock=clock).start()
+    clock.advance(1)
+    t.extend(10)
+    data = t.to_dict()
+    assert data["duration"] == 5
+    assert data["extended"] == pytest.approx(10)
+    t.stop()
+
+    restored = Timer.from_dict(data, catch_up=False, clock=clock)
+    assert restored.remaining == pytest.approx(14)
+    assert restored.duration == 5
+    clock.advance(14)
+    assert restored.cycles == 1
+    assert restored.remaining == pytest.approx(5)
+    restored.stop()
+
+
+def test_restore_skips_finished_extended_cycle(clock: FakeClock) -> None:
+    data = Timer(5, repeat=3, clock=clock).start().to_dict()
+    data.update(elapsed=17.0, extended=10.0)
+    del data["saved_at"]
+    restored = Timer.from_dict(data, clock=clock)
+    assert restored.cycles == 1
+    assert restored.remaining == pytest.approx(3)
+    restored.stop()
+
+
 def test_callbacks_can_control_timer(clock: FakeClock) -> None:
     rec = Recorder(clock)
     holder: List[Timer] = []
